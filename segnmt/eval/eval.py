@@ -11,10 +11,8 @@ from nltk.translate import bleu_score
 from segnmt.models.encdec import EncoderDecoder
 from segnmt.train.train import decode_bpe
 from segnmt.train.train import convert
-from segnmt.train.train import convert_with_similar_sentences
 from segnmt.train.train import load_vocab
 from segnmt.train.train import load_data
-from segnmt.train.train import load_validation_data
 
 
 logger = getLogger(__name__)
@@ -32,9 +30,7 @@ class ConstArguments(NamedTuple):
     target_word_embeddings_size: int
     decoder_hidden_layer_size: int
     attention_hidden_layer_size: int
-    gate_hidden_layer_size: int
     maxout_layer_size: int
-    fusion_mode: str
 
     gpu: int
     minibatch_size: int
@@ -44,8 +40,6 @@ class ConstArguments(NamedTuple):
     training_target: str
     validation_source: str
     validation_target: str
-    similar_sentence_indices: Optional[str]
-    similar_sentence_indices_validation: Optional[str]
     translation_output_file: str
     resume_file: str
     max_translation_length: int
@@ -63,9 +57,7 @@ def evaluate(args: argparse.Namespace):
                            cargs.target_word_embeddings_size,
                            cargs.decoder_hidden_layer_size,
                            cargs.attention_hidden_layer_size,
-                           cargs.gate_hidden_layer_size,
-                           cargs.maxout_layer_size,
-                           cargs.fusion_mode)
+                           cargs.maxout_layer_size)
     if cargs.gpu >= 0:
         chainer.cuda.get_device_from_id(cargs.gpu).use()
         model.to_gpu(cargs.gpu)
@@ -76,27 +68,13 @@ def evaluate(args: argparse.Namespace):
     target_vocab = load_vocab(cargs.target_vocab, cargs.target_vocabulary_size)
 
     converter = convert
-    if cargs.similar_sentence_indices is not None:
-        converter = convert_with_similar_sentences
 
-    if cargs.similar_sentence_indices_validation is not None:
-        validation_data = load_validation_data(
-            cargs.training_source,
-            cargs.training_target,
-            cargs.validation_source,
-            cargs.validation_target,
-            source_vocab,
-            target_vocab,
-            cargs.similar_sentence_indices_validation,
-            1000
-        )
-    else:
-        validation_data = load_data(
-            cargs.validation_source,
-            cargs.validation_target,
-            source_vocab,
-            target_vocab
-        )
+    validation_data = load_data(
+        cargs.validation_source,
+        cargs.validation_target,
+        source_vocab,
+        target_vocab
+    )
 
     v_iter = chainer.iterators.SerialIterator(
         validation_data,
@@ -123,12 +101,8 @@ def evaluate(args: argparse.Namespace):
             i = i + len(minibatch)
             converted = converter(minibatch, cargs.gpu)
             source = converted[0]
-            similars = None
-            if len(converted) == 3:
-                similars = converted[2]
             results = model.translate(
                 source,
-                similars,
                 max_translation_length=cargs.max_translation_length
             )
             hypotheses.extend([

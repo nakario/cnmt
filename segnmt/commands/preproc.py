@@ -26,26 +26,12 @@ def define_parser(parser):
                         help='')
     parser.add_argument('--target-test', type=str,
                         help='')
-    parser.add_argument('--skip-create-index', action='store_true',
-                        help='')
-    parser.add_argument('--skip-sleep', action='store_true',
-                        help='')
-    parser.add_argument('--skip-make-sim', action='store_true',
-                        help='')
     parser.add_argument('--skip-create-bpe', action='store_true',
                         help='')
     parser.add_argument('--skip-bpe-encode', action='store_true',
                         help='')
     parser.add_argument('--skip-make-voc', action='store_true',
                         help='')
-    parser.add_argument('--limit', type=int, default=-1,
-                        help='')
-    parser.add_argument('--similarity-function', type=str,
-                        choices=functions.keys(),
-                        default=list(functions.keys())[0],
-                        help='')
-    parser.add_argument('--sleep-time', type=int, default=60,
-                        help='how many seconds it sleeps')
 
 
 def run(args):

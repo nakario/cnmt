@@ -2,21 +2,11 @@ from argparse import Namespace
 from collections import Counter
 from logging import getLogger
 from pathlib import Path
-from time import sleep
-from typing import Callable
-from typing import List
 from typing import NamedTuple
 from typing import Union
 
-from joblib import delayed
-from joblib import Parallel
-
 from segnmt.external_libs.bpe import learn_bpe
 from segnmt.external_libs.bpe import apply_bpe
-from segnmt.search_engine.retriever import Retriever
-from segnmt.search_engine.similarity import functions
-from segnmt.search_engine.elastic_engine import ElasticEngine
-from segnmt.search_engine.elastic_engine import create_index
 
 
 class ConstArguments(NamedTuple):
@@ -31,15 +21,9 @@ class ConstArguments(NamedTuple):
     target_dev: str
     source_test: str
     target_test: str
-    skip_create_index: bool
-    skip_sleep: bool
-    skip_make_sim: bool
     skip_create_bpe: bool
     skip_bpe_encode: bool
     skip_make_voc: bool
-    limit: int
-    similarity_function: str
-    sleep_time: int
 
 
 logger = getLogger(__name__)
@@ -166,58 +150,6 @@ def make_voc(
     logger.info(f'Size of vocabulary : {len(vocab)}')
 
 
-def retrieve_indices(
-        sentence: str,
-        i: int,
-        training: bool,
-        similar_function: Callable[[str, str], float],
-        limit: int = -1
-) -> List[str]:
-    engine = ElasticEngine(100, 'segnmt', 'pairs')
-    retriever = Retriever(
-        engine,
-        similar_function,
-        limit=limit,
-        training=training
-    )
-    retrieved = retriever.retrieve(sentence, i)
-    if len(retrieved) > 0:
-        retrieved_indices, _, _ = zip(*retrieved)
-        return [str(i)] + list(retrieved_indices)
-    else:
-        return [str(i)]
-
-
-def make_sim(
-        data: Union[Path, str],
-        sim_file: Union[Path, str],
-        training: bool,
-        similar_function: Callable[[str, str], float],
-        limit: int = -1
-):
-    """Create a list of indices of similar sentences."""
-    if isinstance(data, str):
-        data = Path(data)
-    if isinstance(sim_file, str):
-        sim_file = Path(sim_file)
-    assert data.exists()
-    assert sim_file.parent.exists()
-
-    indices_list: List[List[str]]
-    with open(data) as src:
-        sentence_list = src.readlines()
-        indices_list = Parallel(n_jobs=-1, verbose=1)([
-            delayed(retrieve_indices)(
-                sentence.strip(), i, training, similar_function, limit
-            )
-            for i, sentence in enumerate(sentence_list)
-        ])
-
-    with open(sim_file, 'w') as sim:
-        for indices in indices_list:
-            sim.write(' '.join(indices) + '\n')
-
-
 def make_config(config_file: Path):
     pass
 
@@ -241,18 +173,6 @@ def preproc(args: Namespace):
         cargs.min_source_len, cargs.max_source_len,
         cargs.min_target_len, cargs.max_target_len
     )
-    if not cargs.skip_create_index:
-        create_index('segnmt', 'pairs', source, target)
-    if not cargs.skip_sleep:
-        sleep(cargs.sleep_time)
-    if not cargs.skip_make_sim:
-        make_sim(
-            source,
-            output / Path('train_sim'),
-            True,
-            functions.get(cargs.similarity_function),
-            cargs.limit
-        )
 
     bpe_source = output / Path('bpe_source')
     bpe_target = output / Path('bpe_target')
@@ -279,14 +199,6 @@ def preproc(args: Namespace):
         cargs.min_source_len, cargs.max_source_len,
         cargs.min_target_len, cargs.max_target_len
     )
-    if not cargs.skip_make_sim:
-        make_sim(
-            source_dev,
-            output / Path('dev_sim'),
-            False,
-            functions.get(cargs.similarity_function),
-            cargs.limit
-        )
 
     source_dev_compressed = output / Path('source_dev_compressed')
     target_dev_compressed = output / Path('target_dev_compressed')
@@ -305,14 +217,6 @@ def preproc(args: Namespace):
         1, 1000,
         1, 1000
     )
-    if not cargs.skip_make_sim:
-        make_sim(
-            source_test,
-            output / Path('test_sim'),
-            False,
-            functions.get(cargs.similarity_function),
-            cargs.limit
-        )
 
     source_test_compressed = output / Path('source_test_compressed')
     target_test_compressed = output / Path('target_test_compressed')

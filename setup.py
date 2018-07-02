@@ -18,7 +18,6 @@ setup(
         'chainer>=2.1.0',
         'matplotlib',
         'nltk',
-        'progressbar2',
-        'whoosh'
+        'progressbar2'
     ]
 )

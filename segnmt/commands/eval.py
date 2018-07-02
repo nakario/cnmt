@@ -26,8 +26,6 @@ def define_parser(parser: argparse.ArgumentParser):
                         help='')
     parser.add_argument('--attention-hidden-layer-size', type=int,
                         default=1024, help='')
-    parser.add_argument('--gate-hidden-layer-size', type=int,
-                        default=512, help='')
     parser.add_argument('--maxout-layer-size', type=int, default=512,
                         help='')
 
@@ -47,16 +45,10 @@ def define_parser(parser: argparse.ArgumentParser):
                         help='')
     parser.add_argument('--validation-target', type=str, required=True,
                         help='')
-    parser.add_argument('--similar-sentence-indices', default=None,
-                        help='')
-    parser.add_argument('--similar-sentence-indices-validation', default=None,
-                        help='')
     parser.add_argument('--translation-output-file', type=str,
                         default='output.txt', help='')
     parser.add_argument('--resume-file', type=str, required=True,
                         help='best_bleu.npz')
-    parser.add_argument('--fusion-mode', choices=['deep', 'shallow'],
-                        default='deep', help='')
     parser.add_argument('--max-translation-length', type=int, default=100,
                         help='')
 

@@ -1,5 +1,3 @@
-from typing import Callable
-
 import chainer
 import chainer.functions as F
 import chainer.links as L
@@ -89,4 +87,3 @@ class AttentionModule(chainer.Chain):
 
         context = F.sum(F.scale(self.encoded, attention, axis=0), axis=1)
         return context
-

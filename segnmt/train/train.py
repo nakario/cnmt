@@ -42,9 +42,7 @@ class ConstArguments(NamedTuple):
     target_word_embeddings_size: int
     decoder_hidden_layer_size: int
     attention_hidden_layer_size: int
-    gate_hidden_layer_size: int
     maxout_layer_size: int
-    fusion_mode: str
 
     gpu: int
     minibatch_size: int
@@ -55,14 +53,10 @@ class ConstArguments(NamedTuple):
     training_target: str
     validation_source: Optional[str]
     validation_target: Optional[str]
-    similar_sentence_indices: Optional[str]
-    similar_sentence_indices_validation: Optional[str]
     loss_plot_file: str
     bleu_plot_file: str
     resume_file: Optional[str]
     extension_trigger: int
-    similar_limit: int
-    similar_limit_validation: int
     max_translation_length: int
 
 
@@ -181,34 +175,6 @@ def convert(
     )
 
 
-def convert_with_similar_sentences(
-        minibatch: List[
-            Tuple[np.ndarray, np.ndarray, List[Tuple[np.ndarray, np.ndarray]]]
-        ],
-        device: Optional[int]
-) -> Tuple[ndarray, ndarray, List[Tuple[ndarray, ndarray]]]:
-    src_batch, tgt_batch, sim_batches = zip(*minibatch)
-    source, target = convert(list(zip(src_batch, tgt_batch)), device)
-    # len(sim_batches) == minibatch_size
-    # len(sim_batches[i]) == retrieved_size
-    # sim_batches[i][j][0].shape == (source_sentence_size,)
-    # sim_batches[i][j][1].shape == (target_sentence_size,)
-    max_retrieved_count = max(len(x) for x in sim_batches)
-    similar_sentences = []
-    for i in range(max_retrieved_count):
-        similar_sentences.append(
-            convert([
-                sim_batch[i] if i < len(sim_batch)
-                else (np.array([], 'i'), np.array([], 'i'))
-                for sim_batch in sim_batches
-            ], device)
-        )
-
-    return (
-        source, target, similar_sentences
-    )
-
-
 def load_vocab(vocab_file: Union[Path, str], size: int) -> Dict[str, int]:
     """Create a vocabulary from a file.
 
@@ -257,7 +223,6 @@ def load_data(
     logger.info(f'loading {source.absolute()} and {target.absolute()}')
     with open(source) as src, open(target) as tgt:
         bar = ProgressBar()
-        i = 0
         for i, (s, t) in bar(enumerate(zip(src, tgt)), max_value=file_len):
             s_words = s.strip().split()
             t_words = t.strip().split()
@@ -270,106 +235,22 @@ def load_data(
     return data
 
 
-def load_train_data(
-        source: Union[Path, str],
-        target: Union[Path, str],
-        source_vocab: Dict[str, int],
-        target_vocab: Dict[str, int],
-        similar_indices: Union[Path, str],
-        similar_limit: int
-) -> List[Tuple[np.ndarray, np.ndarray, List[Tuple[np.ndarray, np.ndarray]]]]:
-    if isinstance(source, str):
-        source = Path(source)
-    if isinstance(target, str):
-        target = Path(target)
-    if isinstance(similar_indices, str):
-        similar_indices = Path(similar_indices)
-    assert source.exists()
-    assert target.exists()
-    assert similar_indices.exists()
-
-    data = load_data(source, target, source_vocab, target_vocab)
-
-    with open(similar_indices) as sim:
-        assert len(data) == sum(1 for _ in sim)
-
-    fulldata = []
-
-    logger.info(f'loading similar sentences from {similar_indices.absolute()}')
-    with open(similar_indices) as f:
-        bar = ProgressBar()
-        for i, line in bar(enumerate(f), max_value=len(data)):
-            indices = [int(i) for i in line.strip().split()][1:similar_limit+1]
-            similar_data = [data[index] for index in indices]
-            fulldata.append((*data[i], similar_data))
-
-    return fulldata
-
-
-def load_validation_data(
-        train_source: Union[Path, str],
-        train_target: Union[Path, str],
-        source: Union[Path, str],
-        target: Union[Path, str],
-        source_vocab: Dict[str, int],
-        target_vocab: Dict[str, int],
-        similar_indices: Union[Path, str],
-        similar_limit: int
-) -> List[Tuple[np.ndarray, np.ndarray, List[Tuple[np.ndarray, np.ndarray]]]]:
-    if isinstance(train_source, str):
-        train_source = Path(train_source)
-    if isinstance(train_target, str):
-        train_target = Path(train_target)
-    if isinstance(source, str):
-        source = Path(source)
-    if isinstance(target, str):
-        target = Path(target)
-    if isinstance(similar_indices, str):
-        similar_indices = Path(similar_indices)
-    assert train_source.exists()
-    assert train_target.exists()
-    assert source.exists()
-    assert target.exists()
-    assert similar_indices.exists()
-
-    train_data = load_data(
-        train_source, train_target,
-        source_vocab, target_vocab
-    )
-
-    data = load_data(source, target, source_vocab, target_vocab)
-
-    with open(similar_indices) as sim:
-        assert len(data) == sum(1 for _ in sim)
-
-    fulldata = []
-
-    logger.info(f'loading similar sentences from {similar_indices.absolute()}')
-    with open(similar_indices) as f:
-        bar = ProgressBar()
-        for i, line in bar(enumerate(f), max_value=len(data)):
-            indices = [int(i) for i in line.strip().split()][1:similar_limit+1]
-            similar_data = [train_data[index] for index in indices]
-            fulldata.append((*data[i], similar_data))
-
-    return fulldata
-
-
 def train(args: argparse.Namespace):
     cargs = ConstArguments(**vars(args))
     logger.info(f'cargs: {cargs}')
-    model = EncoderDecoder(cargs.source_vocabulary_size,
-                           cargs.source_word_embeddings_size,
-                           cargs.encoder_hidden_layer_size,
-                           cargs.encoder_num_steps,
-                           cargs.encoder_dropout,
-                           cargs.target_vocabulary_size,
-                           cargs.target_word_embeddings_size,
-                           cargs.decoder_hidden_layer_size,
-                           cargs.attention_hidden_layer_size,
-                           cargs.gate_hidden_layer_size,
-                           cargs.maxout_layer_size,
-                           cargs.fusion_mode)
+    model = EncoderDecoder(
+        cargs.source_vocabulary_size,
+        cargs.source_word_embeddings_size,
+        cargs.encoder_hidden_layer_size,
+        cargs.encoder_num_steps,
+        cargs.encoder_dropout,
+        cargs.target_vocabulary_size,
+        cargs.target_word_embeddings_size,
+        cargs.decoder_hidden_layer_size,
+        cargs.attention_hidden_layer_size,
+        cargs.maxout_layer_size
+    )
+
     if cargs.gpu >= 0:
         chainer.cuda.get_device_from_id(cargs.gpu).use()
         model.to_gpu(cargs.gpu)
@@ -382,28 +263,16 @@ def train(args: argparse.Namespace):
     source_vocab = load_vocab(cargs.source_vocab, cargs.source_vocabulary_size)
     target_vocab = load_vocab(cargs.target_vocab, cargs.target_vocabulary_size)
 
-    if cargs.similar_sentence_indices is not None:
-        training_data = load_train_data(
-            cargs.training_source,
-            cargs.training_target,
-            source_vocab,
-            target_vocab,
-            cargs.similar_sentence_indices,
-            cargs.similar_limit
-        )
-    else:
-        training_data = load_data(
-            cargs.training_source,
-            cargs.training_target,
-            source_vocab,
-            target_vocab
-        )
+    training_data = load_data(
+        cargs.training_source,
+        cargs.training_target,
+        source_vocab,
+        target_vocab
+    )
 
     training_iter = chainer.iterators.SerialIterator(training_data,
                                                      cargs.minibatch_size)
     converter = convert
-    if cargs.similar_sentence_indices is not None:
-        converter = convert_with_similar_sentences
     updater = training.StandardUpdater(
         training_iter, optimizer, converter=converter, device=cargs.gpu)
     trainer = training.Trainer(updater, (cargs.epoch, 'epoch'))
@@ -458,24 +327,12 @@ def train(args: argparse.Namespace):
 
     if cargs.validation_source is not None and \
             cargs.validation_target is not None:
-        if cargs.similar_sentence_indices_validation is not None:
-            validation_data = load_validation_data(
-                cargs.training_source,
-                cargs.training_target,
-                cargs.validation_source,
-                cargs.validation_target,
-                source_vocab,
-                target_vocab,
-                cargs.similar_sentence_indices_validation,
-                cargs.similar_limit_validation
-            )
-        else:
-            validation_data = load_data(
-                cargs.validation_source,
-                cargs.validation_target,
-                source_vocab,
-                target_vocab
-            )
+        validation_data = load_data(
+            cargs.validation_source,
+            cargs.validation_target,
+            source_vocab,
+            target_vocab
+        )
 
         v_iter1 = chainer.iterators.SerialIterator(
             validation_data,
