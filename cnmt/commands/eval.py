@@ -1,12 +1,12 @@
 import argparse
 
-from segnmt.eval.eval import evaluate
+from cnmt.eval.eval import evaluate
 
 
 def define_parser(parser: argparse.ArgumentParser):
     """Define command specific options.
 
-    See `segnmt.train.train.ConstArguments`
+    See `cnmt.train.train.ConstArguments`
     """
     parser.add_argument('--source-vocabulary-size', type=int, default=40000,
                         help='The number of words of source language')

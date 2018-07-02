@@ -1,4 +1,4 @@
-from segnmt.preproc.preproc import preproc
+from cnmt.preproc.preproc import preproc
 
 
 def define_parser(parser):

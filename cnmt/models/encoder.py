@@ -5,8 +5,8 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import Variable
 
-from segnmt.misc.constants import PAD
-from segnmt.misc.typing import ndarray
+from cnmt.misc.constants import PAD
+from cnmt.misc.typing import ndarray
 
 
 class Encoder(chainer.Chain):

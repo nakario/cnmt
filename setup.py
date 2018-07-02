@@ -11,7 +11,7 @@ if sys.version_info < (3, 6):
 
 
 setup(
-    name='segnmt',
+    name='cnmt',
     version='0.1.0',
     packages=find_packages(),
     requires=[

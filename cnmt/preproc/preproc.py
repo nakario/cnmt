@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import NamedTuple
 from typing import Union
 
-from segnmt.external_libs.bpe import learn_bpe
-from segnmt.external_libs.bpe import apply_bpe
+from cnmt.external_libs.bpe import learn_bpe
+from cnmt.external_libs.bpe import apply_bpe
 
 
 class ConstArguments(NamedTuple):

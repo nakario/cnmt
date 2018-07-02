@@ -8,16 +8,16 @@ from logging import INFO
 from typing import List
 from typing import Optional
 
-import segnmt.commands.eval as eval_
-import segnmt.commands.preproc as preproc
-import segnmt.commands.train as train
+import cnmt.commands.eval as eval_
+import cnmt.commands.preproc as preproc
+import cnmt.commands.train as train
 
 basicConfig(level=INFO)
 
 
 def main(arguments: Optional[List[str]] = None):
     """Define command line parser and run the specified command."""
-    parser = argparse.ArgumentParser(prog='segnmt')
+    parser = argparse.ArgumentParser(prog='cnmt')
     parser.set_defaults(run=lambda _: parser.print_help())
     subparsers = parser.add_subparsers()
 

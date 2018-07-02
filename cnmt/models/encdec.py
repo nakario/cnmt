@@ -4,9 +4,9 @@ from typing import List
 import chainer
 from chainer import Variable
 
-from segnmt.misc.typing import ndarray
-from segnmt.models.encoder import Encoder
-from segnmt.models.decoder import Decoder
+from cnmt.misc.typing import ndarray
+from cnmt.models.encoder import Encoder
+from cnmt.models.decoder import Decoder
 
 
 logger = getLogger(__name__)

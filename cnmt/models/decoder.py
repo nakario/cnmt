@@ -7,10 +7,10 @@ from chainer import Parameter
 from chainer import Variable
 import numpy as np
 
-from segnmt.misc.constants import EOS
-from segnmt.misc.constants import PAD
-from segnmt.misc.typing import ndarray
-from segnmt.models.attention import AttentionModule
+from cnmt.misc.constants import EOS
+from cnmt.misc.constants import PAD
+from cnmt.misc.typing import ndarray
+from cnmt.models.attention import AttentionModule
 
 
 class SimilarityScoreFunction(chainer.Chain):
