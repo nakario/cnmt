@@ -127,12 +127,8 @@ class CalculateBleu(chainer.training.Extension):
                 ])
                 converted = self.converter(minibatch, self.device)
                 source = converted[0]
-                similars = None
-                if len(converted) == 3:
-                    similars = converted[2]
                 results = self.model.translate(
                     source,
-                    similars,
                     max_translation_length=self.max_translation_length
                 )
                 hypotheses.extend([
@@ -366,12 +362,8 @@ def train(args: argparse.Namespace):
             data = validation_data[np.random.choice(validation_size)]
             converted = converter([data], cargs.gpu)
             source, target = converted[:2]
-            similars = None
-            if len(converted) == 3:
-                similars = converted[2]
             result = model.translate(
                 source,
-                similars,
                 max_translation_length=cargs.max_translation_length
             )[0].reshape((1, -1))
 
@@ -387,16 +379,6 @@ def train(args: argparse.Namespace):
             logger.info('# source       : ' + source_sentence)
             logger.info('# output       : ' + result_sentence)
             logger.info('# reference    : ' + target_sentence)
-            if similars is not None:
-                for i, pair in enumerate(similars):
-                    retrieved_source = ' '.join(decode_bpe(
-                        [source_word[int(word)] for word in pair[0][0]]
-                    ))
-                    logger.info(f'# retrieved[{i}] : {retrieved_source}')
-                    retrieved_target = ' '.join(decode_bpe(
-                        [target_word[int(word)] for word in pair[1][0]]
-                    ))
-                    logger.info(f'# retrieved[{i}] : {retrieved_target}')
 
         trainer.extend(
             translate,

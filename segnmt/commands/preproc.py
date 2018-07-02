@@ -1,5 +1,4 @@
 from segnmt.preproc.preproc import preproc
-from segnmt.search_engine.similarity import functions
 
 
 def define_parser(parser):

@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+"cupy-cuda90" = "*"
 
 [packages]
 numpy = "*"
