@@ -70,7 +70,8 @@ def preproc_anap(
         ga_file: Path,
         wo_file: Path,
         ni_file: Path,
-        ga2_file: Path
+        ga2_file: Path,
+        nil_file: Path
 ):
     assert anap_file.exists()
     assert raw_file.parent.exists()
@@ -84,6 +85,7 @@ def preproc_anap(
     wo_list = []
     ni_list = []
     ga2_list = []
+    nil_list = []
     file_len = flen(anap_file)
     with open(anap_file) as anap:
         raw = []
@@ -105,6 +107,7 @@ def preproc_anap(
                 wo_list.append(" ".join(wo))
                 ni_list.append(" ".join(ni))
                 ga2_list.append(" ".join(ga2))
+                nil_list.append(" ".join([nil for _ in raw]))
                 raw = []
                 ga = []
                 wo = []
@@ -133,6 +136,9 @@ def preproc_anap(
     with open(ga2_file, "w") as f:
         f.write("\n".join(ga2_list))
 
+    with open(nil_file, "w") as f:
+        f.write("\n".join(nil_list))
+
 
 def copy_data_with_limit(
         source: Path,
@@ -141,12 +147,14 @@ def copy_data_with_limit(
         wo_file: Path,
         ni_file: Path,
         ga2_file: Path,
+        nil_file: Path,
         source_copy: Path,
         target_copy: Path,
         ga_copy: Path,
         wo_copy: Path,
         ni_copy: Path,
         ga2_copy: Path,
+        nil_copy: Path,
         min_source_len: int,
         max_source_len: int,
         min_target_len: int,
@@ -158,12 +166,14 @@ def copy_data_with_limit(
     assert wo_file.exists()
     assert ni_file.exists()
     assert ga2_file.exists()
+    assert nil_file.exists()
     assert source_copy.parent.exists()
     assert target_copy.parent.exists()
     assert ga_copy.parent.exists()
     assert wo_copy.parent.exists()
     assert ni_copy.parent.exists()
     assert ga2_copy.parent.exists()
+    assert nil_file.parent.exists()
 
     src = open(source)
     tgt = open(target)
@@ -171,6 +181,7 @@ def copy_data_with_limit(
     wo = open(wo_file)
     ni = open(ni_file)
     ga2 = open(ga2_file)
+    nil_ = open(nil_file)
 
     src_c = open(source_copy, 'w')
     tgt_c = open(target_copy, 'w')
@@ -178,8 +189,9 @@ def copy_data_with_limit(
     wo_c = open(wo_copy, 'w')
     ni_c = open(ni_copy, 'w')
     ga2_c = open(ga2_copy, 'w')
+    nil_c = open(nil_copy, 'w')
 
-    for s, t, g, w, n, g2 in zip(src, tgt, ga, wo, ni, ga2):
+    for s, t, g, w, n, g2, ni in zip(src, tgt, ga, wo, ni, ga2, nil_):
         s_words = s.strip().split()
         t_words = t.strip().split()
         s_len = len(s_words)
@@ -192,12 +204,14 @@ def copy_data_with_limit(
         assert s_len == len(w.strip().split())
         assert s_len == len(n.strip().split())
         assert s_len == len(g2.strip().split())
+        assert s_len == len(ni.strip().split())
         src_c.write(s)
         tgt_c.write(t)
         ga_c.write(g)
         wo_c.write(w)
         ni_c.write(n)
         ga2_c.write(g2)
+        nil_c.write(ni)
 
     src.close()
     tgt.close()
@@ -205,6 +219,7 @@ def copy_data_with_limit(
     wo.close()
     ni.close()
     ga2.close()
+    nil_.close()
 
     src_c.close()
     tgt_c.close()
@@ -212,6 +227,7 @@ def copy_data_with_limit(
     wo_c.close()
     ni_c.close()
     ga2_c.close()
+    nil_c.close()
 
 
 def create_bpe_file(
@@ -316,8 +332,11 @@ def preproc(args: Namespace):
     raw_wo = output / Path('raw_wo')
     raw_ni = output / Path('raw_ni')
     raw_ga2 = output / Path('raw_ga2')
+    raw_nil = output / Path('raw_nil')
 
-    preproc_anap(cargs.source, raw_source, raw_ga, raw_wo, raw_ni, raw_ga2)
+    preproc_anap(
+        cargs.source, raw_source, raw_ga, raw_wo, raw_ni, raw_ga2, raw_nil
+    )
 
     # training dataset
     source = output / Path('source')
@@ -326,10 +345,11 @@ def preproc(args: Namespace):
     wo = output / Path('limited_wo')
     ni = output / Path('limited_ni')
     ga2 = output / Path('limited_ga2')
+    nil_ = output / Path('limited_nil')
 
     copy_data_with_limit(
-        raw_source, cargs.target, raw_ga, raw_wo, raw_ni, raw_ga2,
-        source, target, ga, wo, ni, ga2,
+        raw_source, cargs.target, raw_ga, raw_wo, raw_ni, raw_ga2, raw_nil,
+        source, target, ga, wo, ni, ga2, nil_,
         cargs.min_source_len, cargs.max_source_len,
         cargs.min_target_len, cargs.max_target_len
     )
@@ -355,10 +375,12 @@ def preproc(args: Namespace):
     raw_wo_dev = output / Path('raw_wo_dev')
     raw_ni_dev = output / Path('raw_ni_dev')
     raw_ga2_dev = output / Path('raw_ga2_dev')
+    raw_nil_dev = output / Path('raw_nil_dev')
 
     preproc_anap(
         cargs.source_dev,
-        raw_source_dev, raw_ga_dev, raw_wo_dev, raw_ni_dev, raw_ga2_dev
+        raw_source_dev, raw_ga_dev, raw_wo_dev,
+        raw_ni_dev, raw_ga2_dev, raw_nil_dev
     )
 
     source_dev = output / Path('source_dev')
@@ -367,12 +389,13 @@ def preproc(args: Namespace):
     wo_dev = output / Path('limited_wo_dev')
     ni_dev = output / Path('limited_ni_dev')
     ga2_dev = output / Path('limited_ga2_dev')
+    nil_dev = output / Path('limited_nil_dev')
 
     copy_data_with_limit(
         raw_source_dev, cargs.target_dev,
-        raw_ga_dev, raw_wo_dev, raw_ni_dev, raw_ga2_dev,
+        raw_ga_dev, raw_wo_dev, raw_ni_dev, raw_ga2_dev, raw_nil_dev,
         source_dev, target_dev,
-        ga_dev, wo_dev, ni_dev, ga2_dev,
+        ga_dev, wo_dev, ni_dev, ga2_dev, nil_dev,
         cargs.min_source_len, cargs.max_source_len,
         cargs.min_target_len, cargs.max_target_len
     )
@@ -390,10 +413,12 @@ def preproc(args: Namespace):
     raw_wo_test = output / Path('raw_wo_test')
     raw_ni_test = output / Path('raw_ni_test')
     raw_ga2_test = output / Path('raw_ga2_test')
+    raw_nil_test = output / Path('raw_nil_test')
 
     preproc_anap(
         cargs.source_test,
-        raw_source_test, raw_ga_test, raw_wo_test, raw_ni_test, raw_ga2_test
+        raw_source_test, raw_ga_test, raw_wo_test,
+        raw_ni_test, raw_ga2_test, raw_nil_test
     )
 
     source_test = output / Path('source_test')
@@ -402,12 +427,13 @@ def preproc(args: Namespace):
     wo_test = output / Path('limited_wo_test')
     ni_test = output / Path('limited_ni_test')
     ga2_test = output / Path('limited_ga2_test')
+    nil_test = output / Path('limited_nil_test')
 
     copy_data_with_limit(
         raw_source_test, cargs.target_test,
-        raw_ga_test, raw_wo_test, raw_ni_test, raw_ga2_test,
+        raw_ga_test, raw_wo_test, raw_ni_test, raw_ga2_test, raw_nil_test,
         source_test, target_test,
-        ga_test, wo_test, ni_test, ga2_test,
+        ga_test, wo_test, ni_test, ga2_test, nil_test,
         1, 1000,
         1, 1000
     )
