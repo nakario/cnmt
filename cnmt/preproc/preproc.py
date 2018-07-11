@@ -7,10 +7,13 @@ from typing import Dict
 from typing import NamedTuple
 from typing import Union
 
+from progressbar import ProgressBar
+
 from cnmt.external_libs.bpe import learn_bpe
 from cnmt.external_libs.bpe import apply_bpe
 from cnmt.misc.constants import GA, WO, NI, GA2
 from cnmt.misc.constants import nil
+from cnmt.misc.functions import flen
 
 
 class ConstArguments(NamedTuple):
@@ -78,10 +81,12 @@ def preproc_anap(
     wo_list = []
     ni_list = []
     ga2_list = []
+    file_len = flen(anap_file)
     with open(anap_file) as anap:
         raw = ga = wo = ni = ga2 = []
         result = {}
-        for line in anap:
+        bar = ProgressBar(max_value=file_len)
+        for line in bar(anap):
             if line.startswith(("#", "*")):
                 continue
             if line.startswith("+"):
