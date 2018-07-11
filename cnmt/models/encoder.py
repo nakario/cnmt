@@ -4,6 +4,7 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 from chainer import Variable
+import numpy as np
 
 from cnmt.misc.constants import PAD
 from cnmt.misc.typing import ndarray
@@ -62,10 +63,10 @@ class Encoder(chainer.Chain):
         embedded_source = self.embed_id(source)
         assert embedded_source.shape == \
             (minibatch_size, max_sentence_size, self.word_embeddings_size)
-        e_ga = self.linear_ga(self.embed_id(ga))
-        e_wo = self.linear_wo(self.embed_id(wo))
-        e_ni = self.linear_ni(self.embed_id(ni))
-        e_ga2 = self.linear_ga2(self.embed_id(ga2))
+        e_ga = nested_linear(self.embed_id(ga), self.linear_ga)
+        e_wo = nested_linear(self.embed_id(wo), self.linear_wo)
+        e_ni = nested_linear(self.embed_id(ni), self.linear_ni)
+        e_ga2 = nested_linear(self.embed_id(ga2), self.linear_ga2)
         embedded_source = embedded_source + e_ga + e_wo + e_ni + e_ga2
 
         embedded_sentences = F.separate(embedded_source, axis=0)
@@ -89,3 +90,11 @@ class Encoder(chainer.Chain):
             (minibatch_size, max_sentence_size, self.output_size)
 
         return encoded
+
+
+def nested_linear(v: Variable, l: L.Linear) -> Variable:
+    last = v.shape[-1]
+    rest = np.prod(v.shape[:-1])
+    reshaped = F.reshape(v, (rest, last))
+    transformed = l(reshaped)
+    return F.reshape(transformed, v.shape[:-1] + (l.out_size,))

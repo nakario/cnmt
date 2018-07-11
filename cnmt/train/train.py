@@ -130,9 +130,9 @@ class CalculateBleu(chainer.training.Extension):
                     ])] for sentence in target_sentences
                 ])
                 converted = self.converter(minibatch, self.device)
-                source = converted[0]
+                source, ga, wo, ni, ga2, target = converted
                 results = self.model.translate(
-                    source,
+                    source, ga, wo, ni, ga2,
                     max_translation_length=self.max_translation_length
                 )
                 hypotheses.extend([
@@ -429,9 +429,9 @@ def train(args: argparse.Namespace):
         def translate(_):
             data = validation_data[np.random.choice(validation_size)]
             converted = converter([data], cargs.gpu)
-            source, target = converted[0], converted[-1]
+            source, ga, wo, ni, ga2, target = converted
             result = model.translate(
-                source,
+                source, ga, wo, ni, ga2,
                 max_translation_length=cargs.max_translation_length
             )[0].reshape((1, -1))
 
