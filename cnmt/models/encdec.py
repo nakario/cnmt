@@ -41,11 +41,16 @@ class EncoderDecoder(chainer.Chain):
     def __call__(
             self,
             source: ndarray,
+            ga: ndarray,
+            wo: ndarray,
+            ni: ndarray,
+            ga2: ndarray,
             target: ndarray
     ) -> Variable:
         # source.shape == (minibatch_size, source_max_sentence_size)
+        # source.shape == ga.shape == wo.shape == ni.shape == ga2.shape
         # target.shape == (minibatch_size, target_max_sentence_size)
-        encoded = self.enc(source)
+        encoded = self.enc(source, ga, wo, ni, ga2)
         loss = self.dec(encoded, target)
         chainer.report({'loss': loss}, self)
         return loss
@@ -53,11 +58,15 @@ class EncoderDecoder(chainer.Chain):
     def translate(
             self,
             sentences: ndarray,
+            ga: ndarray,
+            wo: ndarray,
+            ni: ndarray,
+            ga2: ndarray,
             max_translation_length: int = 100
     ) -> List[ndarray]:
         # sentences.shape == (sentence_count, max_sentence_size)
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
-            encoded = self.enc(sentences)
+            encoded = self.enc(sentences, ga, wo, ni, ga2)
             translated = self.dec.translate(
                 encoded,
                 max_translation_length

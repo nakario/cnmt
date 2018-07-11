@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 from cnmt.train.train import train
 
@@ -35,23 +36,39 @@ def define_parser(parser: argparse.ArgumentParser):
                         help='')
     parser.add_argument('--epoch', type=int, default=20,
                         help='')
-    parser.add_argument('--source-vocab', type=str, required=True,
+    parser.add_argument('--source-vocab', type=Path, required=True,
                         help='')
-    parser.add_argument('--target-vocab', type=str, required=True,
+    parser.add_argument('--target-vocab', type=Path, required=True,
                         help='')
-    parser.add_argument('--training-source', type=str, required=True,
+    parser.add_argument('--training-source', type=Path, required=True,
                         help='')
-    parser.add_argument('--training-target', type=str, required=True,
+    parser.add_argument('--training-ga', type=Path, required=True,
                         help='')
-    parser.add_argument('--validation-source', default=None,
+    parser.add_argument('--training-wo', type=Path, required=True,
                         help='')
-    parser.add_argument('--validation-target', default=None,
+    parser.add_argument('--training-ni', type=Path, required=True,
                         help='')
-    parser.add_argument('--loss-plot-file', type=str, default='loss.png',
+    parser.add_argument('--training-ga2', type=Path, required=True,
                         help='')
-    parser.add_argument('--bleu-plot-file', type=str, default='bleu.png',
+    parser.add_argument('--training-target', type=Path, required=True,
                         help='')
-    parser.add_argument('--resume-file', default=None,
+    parser.add_argument('--validation-source', type=Path, default=None,
+                        help='')
+    parser.add_argument('--validation-ga', type=Path, default=None,
+                        help='')
+    parser.add_argument('--validation-wo', type=Path, default=None,
+                        help='')
+    parser.add_argument('--validation-ni', type=Path, default=None,
+                        help='')
+    parser.add_argument('--validation-ga2', type=Path, default=None,
+                        help='')
+    parser.add_argument('--validation-target', type=Path, default=None,
+                        help='')
+    parser.add_argument('--loss-plot-file', type=Path, default='loss.png',
+                        help='')
+    parser.add_argument('--bleu-plot-file', type=Path, default='bleu.png',
+                        help='')
+    parser.add_argument('--resume-file', type=Path, default=None,
                         help='')
     parser.add_argument('--extension-trigger', type=int, default=100,
                         help='The number of iterations to trigger extensions')

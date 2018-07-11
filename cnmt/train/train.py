@@ -7,7 +7,6 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
-from typing import Union
 
 import chainer
 from chainer.dataset import to_device
@@ -20,9 +19,11 @@ from nltk.translate import bleu_score
 import numpy as np
 from progressbar import ProgressBar
 
-from cnmt.misc.constants import EOS
+from cnmt.misc.constants import EOS, eos
 from cnmt.misc.constants import PAD
-from cnmt.misc.constants import UNK
+from cnmt.misc.constants import UNK, unk
+from cnmt.misc.constants import NIL, nil
+from cnmt.misc.functions import flen
 from cnmt.misc.typing import ndarray
 from cnmt.models.encdec import EncoderDecoder
 
@@ -47,15 +48,23 @@ class ConstArguments(NamedTuple):
     gpu: int
     minibatch_size: int
     epoch: int
-    source_vocab: str
-    target_vocab: str
-    training_source: str
-    training_target: str
-    validation_source: Optional[str]
-    validation_target: Optional[str]
-    loss_plot_file: str
-    bleu_plot_file: str
-    resume_file: Optional[str]
+    source_vocab: Path
+    target_vocab: Path
+    training_source: Path
+    training_ga: Path
+    training_wo: Path
+    training_ni: Path
+    training_ga2: Path
+    training_target: Path
+    validation_source: Optional[Path]
+    validation_ga: Optional[Path]
+    validation_wo: Optional[Path]
+    validation_ni: Optional[Path]
+    validation_ga2: Optional[Path]
+    validation_target: Optional[Path]
+    loss_plot_file: Path
+    bleu_plot_file: Path
+    resume_file: Optional[Path]
     extension_trigger: int
     max_translation_length: int
 
@@ -81,22 +90,17 @@ class CalculateBleu(chainer.training.Extension):
             self,
             validation_iter: chainer.iterators.SerialIterator,
             model: EncoderDecoder,
-            converter: Union[
-                Callable[
-                    [List[Tuple[np.ndarray, np.ndarray]], Optional[int]],
-                    Tuple[ndarray, ndarray]
-                ],
-                Callable[
-                    [
-                        List[Tuple[
-                            np.ndarray,
-                            np.ndarray,
-                            List[Tuple[np.ndarray, np.ndarray]]
-                        ]],
-                        Optional[int]
-                    ],
-                    Tuple[ndarray, ndarray, List[Tuple[ndarray, ndarray]]]
-                ]
+            converter: Callable[
+                    [List[Tuple[
+                        np.ndarray,
+                        np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+                        np.ndarray
+                    ]], Optional[int]],
+                    Tuple[
+                        ndarray,
+                        ndarray, ndarray, ndarray, ndarray,
+                        ndarray
+                    ]
             ],
             id2word: Dict[int, str],
             key: str,
@@ -118,10 +122,10 @@ class CalculateBleu(chainer.training.Extension):
         self.iter.reset()
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             for minibatch in self.iter:
-                target_sentences: List[np.ndarray] = tuple(zip(*minibatch))[1]
+                target_sentences: List[np.ndarray] = tuple(zip(*minibatch))[-1]
                 list_of_references.extend([
                     [decode_bpe([
-                        self.id2word.get(id_, '<UNK>')
+                        self.id2word.get(id_, unk)
                         for id_ in sentence.tolist()
                     ])] for sentence in target_sentences
                 ])
@@ -133,7 +137,7 @@ class CalculateBleu(chainer.training.Extension):
                 )
                 hypotheses.extend([
                     decode_bpe([
-                        self.id2word.get(id_, '<UNK>')
+                        self.id2word.get(id_, unk)
                         for id_ in sentence.tolist()[:-1]
                     ]) for sentence in results
                 ])
@@ -150,83 +154,139 @@ class CalculateBleu(chainer.training.Extension):
 
 
 def convert(
-        minibatch: List[Tuple[np.ndarray, np.ndarray]],
+        minibatch: List[Tuple[
+            np.ndarray,
+            np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+            np.ndarray
+        ]],
         device: Optional[int]
-) -> Tuple[ndarray, ndarray]:
+) -> Tuple[ndarray, ndarray, ndarray, ndarray, ndarray, ndarray]:
     # Append eos to the end of sentence
-    eos = np.array([EOS], 'i')
-    src_batch, tgt_batch = zip(*minibatch)
+    eos_ = np.array([EOS], 'i')
+    (
+        src_batch,
+        ga_batch, wo_batch, ni_batch, ga2_batch,
+        tgt_batch
+    ) = zip(*minibatch)
     with chainer.no_backprop_mode():
         src_sentences = \
-            [Variable(np.hstack((sentence, eos))) for sentence in src_batch]
+            [Variable(np.hstack((sentence, eos_))) for sentence in src_batch]
+        ga_sentences = \
+            [Variable(np.hstack((sentence, eos_))) for sentence in ga_batch]
+        wo_sentences = \
+            [Variable(np.hstack((sentence, eos_))) for sentence in wo_batch]
+        ni_sentences = \
+            [Variable(np.hstack((sentence, eos_))) for sentence in ni_batch]
+        ga2_sentences = \
+            [Variable(np.hstack((sentence, eos_))) for sentence in ga2_batch]
         tgt_sentences = \
-            [Variable(np.hstack((sentence, eos))) for sentence in tgt_batch]
+            [Variable(np.hstack((sentence, eos_))) for sentence in tgt_batch]
 
         src_block = F.pad_sequence(src_sentences, padding=PAD).data
+        ga_block = F.pad_sequence(ga_sentences, padding=PAD).data
+        wo_block = F.pad_sequence(wo_sentences, padding=PAD).data
+        ni_block = F.pad_sequence(ni_sentences, padding=PAD).data
+        ga2_block = F.pad_sequence(ga2_sentences, padding=PAD).data
         tgt_block = F.pad_sequence(tgt_sentences, padding=PAD).data
 
     return (
         to_device(device, src_block),
+        to_device(device, ga_block),
+        to_device(device, wo_block),
+        to_device(device, ni_block),
+        to_device(device, ga2_block),
         to_device(device, tgt_block)
     )
 
 
-def load_vocab(vocab_file: Union[Path, str], size: int) -> Dict[str, int]:
+def load_vocab(vocab_file: Path, size: int) -> Dict[str, int]:
     """Create a vocabulary from a file.
 
     The file specified by `vocab` must be contain one word per line.
     """
 
-    if isinstance(vocab_file, str):
-        vocab_file = Path(vocab_file)
     assert vocab_file.exists()
 
-    words = ['<UNK>', '<EOS>']
+    words = [unk, eos, nil]
     with open(vocab_file) as f:
         words += [line.strip() for line in f]
 
     vocab = {word: index for index, word in enumerate(words) if index < size}
-    assert vocab['<UNK>'] == UNK
-    assert vocab['<EOS>'] == EOS
+    assert vocab[unk] == UNK
+    assert vocab[eos] == EOS
+    assert vocab[nil] == NIL
 
     return vocab
 
 
 def load_data(
-        source: Union[Path, str],
-        target: Union[Path, str],
+        source: Path,
+        ga_file: Path,
+        wo_file: Path,
+        ni_file: Path,
+        ga2_file: Path,
+        target: Path,
         source_vocab: Dict[str, int],
         target_vocab: Dict[str, int]
-) -> Union[
-    List[Tuple[np.ndarray, np.ndarray]],
-    List[Tuple[np.ndarray, np.ndarray, List[Tuple[np.ndarray, np.ndarray]]]]
-]:
-    if isinstance(source, str):
-        source = Path(source)
-    if isinstance(target, str):
-        target = Path(target)
+) -> List[Tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
+]]:
     assert source.exists()
+    assert ga_file.exists()
+    assert wo_file.exists()
+    assert ni_file.exists()
+    assert ga2_file.exists()
     assert target.exists()
 
     data = []
 
-    with open(source) as src, open(target) as tgt:
-        src_len = sum(1 for _ in src)
-        tgt_len = sum(1 for _ in tgt)
-        assert src_len == tgt_len
-        file_len = src_len
+    file_len = flen(source)
+    assert file_len == flen(ga_file)
+    assert file_len == flen(wo_file)
+    assert file_len == flen(ni_file)
+    assert file_len == flen(ga2_file)
+    assert file_len == flen(target)
 
     logger.info(f'loading {source.absolute()} and {target.absolute()}')
-    with open(source) as src, open(target) as tgt:
-        bar = ProgressBar()
-        for i, (s, t) in bar(enumerate(zip(src, tgt)), max_value=file_len):
-            s_words = s.strip().split()
-            t_words = t.strip().split()
-            s_array = \
-                np.array([source_vocab.get(w, UNK) for w in s_words], 'i')
-            t_array = \
-                np.array([target_vocab.get(w, UNK) for w in t_words], 'i')
-            data.append((s_array, t_array))
+    src = open(source)
+    ga = open(ga_file)
+    wo = open(wo_file)
+    ni = open(ni_file)
+    ga2 = open(ga2_file)
+    tgt = open(target)
+
+    bar = ProgressBar()
+    for i, (s, g, w, n, g2, t) in bar(
+            enumerate(zip(src, ga, wo, ni, ga2, tgt)),
+            max_value=file_len
+    ):
+        s_words = s.strip().split()
+        g_words = g.strip().split()
+        w_words = w.strip().split()
+        n_words = n.strip().split()
+        g2_words = g2.strip().split()
+        t_words = t.strip().split()
+
+        s_array = \
+            np.array([source_vocab.get(w, UNK) for w in s_words], 'i')
+        g_array = \
+            np.array([source_vocab.get(w, UNK) for w in g_words], 'i')
+        w_array = \
+            np.array([source_vocab.get(w, UNK) for w in w_words], 'i')
+        n_array = \
+            np.array([source_vocab.get(w, UNK) for w in n_words], 'i')
+        g2_array = \
+            np.array([source_vocab.get(w, UNK) for w in g2_words], 'i')
+        t_array = \
+            np.array([target_vocab.get(w, UNK) for w in t_words], 'i')
+        data.append((s_array, g_array, w_array, n_array, g2_array, t_array))
+
+    src.close()
+    ga.close()
+    wo.close()
+    ni.close()
+    ga2.close()
+    tgt.close()
 
     return data
 
@@ -261,6 +321,10 @@ def train(args: argparse.Namespace):
 
     training_data = load_data(
         cargs.training_source,
+        cargs.training_ga,
+        cargs.training_wo,
+        cargs.training_ni,
+        cargs.training_ga2,
         cargs.training_target,
         source_vocab,
         target_vocab
@@ -291,12 +355,12 @@ def train(args: argparse.Namespace):
         trainer.extend(extensions.PlotReport(
             ['main/loss', 'validation/main/loss'],
             trigger=(cargs.extension_trigger, 'iteration'),
-            file_name=cargs.loss_plot_file
+            file_name=str(cargs.loss_plot_file)
         ))
         trainer.extend(extensions.PlotReport(
             ['validation/main/bleu'],
             trigger=(cargs.extension_trigger, 'iteration'),
-            file_name=cargs.bleu_plot_file
+            file_name=str(cargs.bleu_plot_file)
         ))
         trainer.extend(extensions.PlotReport(
             ['main/lambda'],
@@ -325,6 +389,10 @@ def train(args: argparse.Namespace):
             cargs.validation_target is not None:
         validation_data = load_data(
             cargs.validation_source,
+            cargs.validation_ga,
+            cargs.validation_wo,
+            cargs.validation_ni,
+            cargs.validation_ga2,
             cargs.validation_target,
             source_vocab,
             target_vocab
@@ -361,7 +429,7 @@ def train(args: argparse.Namespace):
         def translate(_):
             data = validation_data[np.random.choice(validation_size)]
             converted = converter([data], cargs.gpu)
-            source, target = converted[:2]
+            source, target = converted[0], converted[-1]
             result = model.translate(
                 source,
                 max_translation_length=cargs.max_translation_length
