@@ -50,7 +50,7 @@ def get_case_word(result: str, case: str) -> str:
 
 
 def get_result(s: str) -> Dict[str, str]:
-    result = re.findall(r"<各解析結果:([^>]*)>", s)
+    result = re.findall(r"<格解析結果:([^>]*)>", s)
     if not result:
         return {GA: nil, WO: nil, NI: nil, GA2: nil}
     result = result[0]
@@ -83,7 +83,11 @@ def preproc_anap(
     ga2_list = []
     file_len = flen(anap_file)
     with open(anap_file) as anap:
-        raw = ga = wo = ni = ga2 = []
+        raw = []
+        ga = []
+        wo = []
+        ni = []
+        ga2 = []
         result = {}
         bar = ProgressBar(max_value=file_len)
         for line in bar(anap):
@@ -98,7 +102,11 @@ def preproc_anap(
                 wo_list.append(" ".join(wo))
                 ni_list.append(" ".join(ni))
                 ga2_list.append(" ".join(ga2))
-                raw = ga = wo = ni = ga2 = []
+                raw = []
+                ga = []
+                wo = []
+                ni = []
+                ga2 = []
                 continue
             raw.append(get_word(line.strip()))
             ga.append(result.get(GA, nil))
