@@ -46,7 +46,10 @@ def get_case_word(result: str, case: str) -> str:
     found = re.findall(case + r"/\w/([^/]*)/", result)
     if (not found) or found[0] == "-":
         return nil
-    return found[0]
+    found = found[0].strip()
+    if not found:
+        return nil
+    return found.split()[0]
 
 
 def get_result(s: str) -> Dict[str, str]:
