@@ -43,7 +43,7 @@ def get_word(s: str) -> str:
 
 
 def get_case_word(result: str, case: str) -> str:
-    found = re.findall(case + r"/\w/([^/]*)/", result)
+    found = re.findall(case + r"/\w/([^/]+)/", result)
     if (not found) or found[0] == "-":
         return nil
     found = found[0].strip()
@@ -55,7 +55,7 @@ def get_case_word(result: str, case: str) -> str:
         return rea
     if found.startswith("不特定:人"):
         return uns
-    return found.split()[0]
+    return found.split(" ")[0]
 
 
 def get_result(s: str) -> Dict[str, str]:
@@ -197,27 +197,27 @@ def copy_data_with_limit(
     ga2_c = open(ga2_copy, 'w')
     nil_c = open(nil_copy, 'w')
 
-    for s, t, g, w, n, g2, ni in zip(src, tgt, ga, wo, ni, ga2, nil_):
-        s_words = s.strip().split()
-        t_words = t.strip().split()
+    for s, t, g, w, n, g2, n_ in zip(src, tgt, ga, wo, ni, ga2, nil_):
+        s_words = s.strip().split(" ")
+        t_words = t.strip().split(" ")
         s_len = len(s_words)
         t_len = len(t_words)
         if s_len < min_source_len or max_source_len < s_len:
             continue
         if t_len < min_target_len or max_target_len < t_len:
             continue
-        assert s_len == len(g.strip().split())
-        assert s_len == len(w.strip().split())
-        assert s_len == len(n.strip().split())
-        assert s_len == len(g2.strip().split())
-        assert s_len == len(ni.strip().split())
+        assert s_len == len(g.strip().split(" "))
+        assert s_len == len(w.strip().split(" "))
+        assert s_len == len(n.strip().split(" "))
+        assert s_len == len(g2.strip().split(" "))
+        assert s_len == len(n_.strip().split(" "))
         src_c.write(s)
         tgt_c.write(t)
         ga_c.write(g)
         wo_c.write(w)
         ni_c.write(n)
         ga2_c.write(g2)
-        nil_c.write(ni)
+        nil_c.write(n_)
 
     src.close()
     tgt.close()
@@ -249,7 +249,7 @@ def create_bpe_file(
 
     logger.info('Start learning BPE')
     with open(document) as doc, open(bpe_file, 'w') as out:
-        iterable = map(lambda x: x.strip().split(), doc)
+        iterable = map(lambda x: x.strip().split(" "), doc)
         learn_bpe.learn_bpe_from_sentence_iterable(
             iterable,
             out,
@@ -280,7 +280,7 @@ def bpe_encode(
     with open(document) as src, open(compressed, 'w') as src_bpe:
         for line in src:
             src_bpe.write(
-                ' '.join(bpe.segment_splitted(line.strip().split())) + '\n'
+                ' '.join(bpe.segment_splitted(line.strip().split(" "))) + '\n'
             )
 
 
@@ -303,7 +303,7 @@ def make_voc(
     with open(document) as doc:
         for sentence in doc:
             sentence_count += 1
-            words = sentence.strip().split()
+            words = sentence.strip().split(" ")
             word_count += len(words)
             for word in words:
                 counts[word] += 1
