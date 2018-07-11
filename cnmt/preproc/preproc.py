@@ -182,10 +182,16 @@ def copy_data_with_limit(
     for s, t, g, w, n, g2 in zip(src, tgt, ga, wo, ni, ga2):
         s_words = s.strip().split()
         t_words = t.strip().split()
-        if len(s_words) < min_source_len or max_source_len < len(s_words):
+        s_len = len(s_words)
+        t_len = len(t_words)
+        if s_len < min_source_len or max_source_len < s_len:
             continue
-        if len(t_words) < min_target_len or max_target_len < len(t_words):
+        if t_len < min_target_len or max_target_len < t_len:
             continue
+        assert s_len == len(g.strip().split())
+        assert s_len == len(w.strip().split())
+        assert s_len == len(n.strip().split())
+        assert s_len == len(g2.strip().split())
         src_c.write(s)
         tgt_c.write(t)
         ga_c.write(g)
