@@ -6,7 +6,7 @@ import chainer.links as L
 from chainer import Variable
 import numpy as np
 
-from cnmt.misc.constants import PAD
+from cnmt.misc.constants import PAD, NIL
 from cnmt.misc.typing import ndarray
 
 
@@ -59,14 +59,23 @@ class Encoder(chainer.Chain):
             ga2: ndarray
     ) -> Variable:
         minibatch_size, max_sentence_size = source.shape
+        assert source.shape == ga.shape == wo.shape == ni.shape == ga2.shape
 
         embedded_source = self.embed_id(source)
         assert embedded_source.shape == \
             (minibatch_size, max_sentence_size, self.word_embeddings_size)
-        e_ga = nested_linear(self.embed_id(ga), self.linear_ga)
-        e_wo = nested_linear(self.embed_id(wo), self.linear_wo)
-        e_ni = nested_linear(self.embed_id(ni), self.linear_ni)
-        e_ga2 = nested_linear(self.embed_id(ga2), self.linear_ga2)
+        ga_mask = self.xp.stack(
+            [(ga != NIL)] * self.word_embeddings_size, axis=2)
+        e_ga = nested_linear(self.embed_id(ga), self.linear_ga) * ga_mask
+        wo_mask = self.xp.stack(
+            [(wo != NIL)] * self.word_embeddings_size, axis=2)
+        e_wo = nested_linear(self.embed_id(wo), self.linear_wo) * wo_mask
+        ni_mask = self.xp.stack(
+            [(ni != NIL)] * self.word_embeddings_size, axis=2)
+        e_ni = nested_linear(self.embed_id(ni), self.linear_ni) * ni_mask
+        ga2_mask = self.xp.stack(
+            [(ga2 != NIL)] * self.word_embeddings_size, axis=2)
+        e_ga2 = nested_linear(self.embed_id(ga2), self.linear_ga2) * ga2_mask
         embedded_source = embedded_source + e_ga + e_wo + e_ni + e_ga2
 
         embedded_sentences = F.separate(embedded_source, axis=0)
