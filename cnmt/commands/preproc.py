@@ -1,13 +1,15 @@
+from pathlib import Path
+
 from cnmt.preproc.preproc import preproc
 
 
 def define_parser(parser):
     """Define command specific options."""
-    parser.add_argument('source', type=str,
+    parser.add_argument('source', type=Path,
                         help='path of source document')
-    parser.add_argument('target', type=str,
+    parser.add_argument('target', type=Path,
                         help='path of target document')
-    parser.add_argument('output', type=str,
+    parser.add_argument('output', type=Path,
                         help='path of output directory')
     parser.add_argument('--min-source-len', type=int, default=1,
                         help='')
@@ -17,13 +19,13 @@ def define_parser(parser):
                         help='')
     parser.add_argument('--max-target-len', type=int, default=70,
                         help='')
-    parser.add_argument('--source-dev', type=str,
+    parser.add_argument('--source-dev', type=Path,
                         help='')
-    parser.add_argument('--target-dev', type=str,
+    parser.add_argument('--target-dev', type=Path,
                         help='')
-    parser.add_argument('--source-test', type=str,
+    parser.add_argument('--source-test', type=Path,
                         help='')
-    parser.add_argument('--target-test', type=str,
+    parser.add_argument('--target-test', type=Path,
                         help='')
     parser.add_argument('--skip-create-bpe', action='store_true',
                         help='')
