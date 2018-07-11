@@ -108,19 +108,19 @@ def preproc_anap(
             result = {}
 
     with open(raw_file, "w") as f:
-        f.writelines(raw_list)
+        f.write("\n".join(raw_list))
 
     with open(ga_file, "w") as f:
-        f.writelines(ga_list)
+        f.write("\n".join(ga_list))
 
     with open(wo_file, "w") as f:
-        f.writelines(wo_list)
+        f.write("\n".join(wo_list))
 
     with open(ni_file, "w") as f:
-        f.writelines(ni_list)
+        f.write("\n".join(ni_list))
 
     with open(ga2_file, "w") as f:
-        f.writelines(ga2_list)
+        f.write("\n".join(ga2_list))
 
 
 def copy_data_with_limit(
