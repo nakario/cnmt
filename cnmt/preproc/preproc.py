@@ -12,7 +12,7 @@ from progressbar import ProgressBar
 from cnmt.external_libs.bpe import learn_bpe
 from cnmt.external_libs.bpe import apply_bpe
 from cnmt.misc.constants import GA, WO, NI, GA2
-from cnmt.misc.constants import nil
+from cnmt.misc.constants import nil, wri, rea, uns
 from cnmt.misc.functions import flen
 
 
@@ -49,6 +49,12 @@ def get_case_word(result: str, case: str) -> str:
     found = found[0].strip()
     if not found:
         return nil
+    if found == "著者":
+        return wri
+    if found == "読者":
+        return rea
+    if found.startswith("不特定:人"):
+        return uns
     return found.split()[0]
 
 

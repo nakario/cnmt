@@ -20,9 +20,12 @@ import numpy as np
 from progressbar import ProgressBar
 
 from cnmt.misc.constants import EOS, eos
-from cnmt.misc.constants import PAD
-from cnmt.misc.constants import UNK, unk
 from cnmt.misc.constants import NIL, nil
+from cnmt.misc.constants import PAD
+from cnmt.misc.constants import REA, rea
+from cnmt.misc.constants import UNK, unk
+from cnmt.misc.constants import UNS, uns
+from cnmt.misc.constants import WRI, wri
 from cnmt.misc.functions import flen
 from cnmt.misc.typing import ndarray
 from cnmt.models.encdec import EncoderDecoder
@@ -207,7 +210,7 @@ def load_vocab(vocab_file: Path, size: int) -> Dict[str, int]:
 
     assert vocab_file.exists()
 
-    words = [unk, eos, nil]
+    words = [unk, eos, nil, wri, rea, uns]
     with open(vocab_file) as f:
         words += [line.strip() for line in f]
 
@@ -215,6 +218,9 @@ def load_vocab(vocab_file: Path, size: int) -> Dict[str, int]:
     assert vocab[unk] == UNK
     assert vocab[eos] == EOS
     assert vocab[nil] == NIL
+    assert vocab[wri] == WRI
+    assert vocab[rea] == REA
+    assert vocab[uns] == UNS
 
     return vocab
 
