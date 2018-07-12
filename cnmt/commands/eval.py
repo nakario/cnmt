@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 from cnmt.eval.eval import evaluate
 
@@ -33,21 +34,25 @@ def define_parser(parser: argparse.ArgumentParser):
                         help='GPU ID (-1 means CPU)')
     parser.add_argument('--minibatch-size', type=int, default=64,
                         help='')
-    parser.add_argument('--source-vocab', type=str, required=True,
+    parser.add_argument('--source-vocab', type=Path, required=True,
                         help='')
-    parser.add_argument('--target-vocab', type=str, required=True,
+    parser.add_argument('--target-vocab', type=Path, required=True,
                         help='')
-    parser.add_argument('--training-source', type=str, required=True,
+    parser.add_argument('--source', type=Path, required=True,
                         help='')
-    parser.add_argument('--training-target', type=str, required=True,
+    parser.add_argument('--ga-file', type=Path, required=True,
                         help='')
-    parser.add_argument('--validation-source', type=str, required=True,
+    parser.add_argument('--wo-file', type=Path, required=True,
                         help='')
-    parser.add_argument('--validation-target', type=str, required=True,
+    parser.add_argument('--ni-file', type=Path, required=True,
                         help='')
-    parser.add_argument('--translation-output-file', type=str,
+    parser.add_argument('--ga2-file', type=Path, required=True,
+                        help='')
+    parser.add_argument('--target', type=Path, required=True,
+                        help='')
+    parser.add_argument('--translation-output-file', type=Path,
                         default='output.txt', help='')
-    parser.add_argument('--resume-file', type=str, required=True,
+    parser.add_argument('--models', nargs='+', type=Path, required=True,
                         help='best_bleu.npz')
     parser.add_argument('--max-translation-length', type=int, default=100,
                         help='')

@@ -1,8 +1,8 @@
 import argparse
+from pathlib import Path
 from logging import getLogger
 from typing import List
 from typing import NamedTuple
-from typing import Optional
 
 import chainer
 import matplotlib
@@ -34,14 +34,16 @@ class ConstArguments(NamedTuple):
 
     gpu: int
     minibatch_size: int
-    source_vocab: str
-    target_vocab: str
-    training_source: str
-    training_target: str
-    validation_source: str
-    validation_target: str
-    translation_output_file: str
-    resume_file: str
+    source_vocab: Path
+    target_vocab: Path
+    source: Path
+    ga_file: Path
+    wo_file: Path
+    ni_file: Path
+    ga2_file: Path
+    target: Path
+    translation_output_file: Path
+    models: List[Path]
     max_translation_length: int
 
 
@@ -62,7 +64,7 @@ def evaluate(args: argparse.Namespace):
         chainer.cuda.get_device_from_id(cargs.gpu).use()
         model.to_gpu(cargs.gpu)
 
-    chainer.serializers.load_npz(cargs.resume_file, model)
+    chainer.serializers.load_npz(cargs.models[0], model)
 
     source_vocab = load_vocab(cargs.source_vocab, cargs.source_vocabulary_size)
     target_vocab = load_vocab(cargs.target_vocab, cargs.target_vocabulary_size)
@@ -70,8 +72,12 @@ def evaluate(args: argparse.Namespace):
     converter = convert
 
     validation_data = load_data(
-        cargs.validation_source,
-        cargs.validation_target,
+        cargs.source,
+        cargs.ga_file,
+        cargs.wo_file,
+        cargs.ni_file,
+        cargs.ga2_file,
+        cargs.target,
         source_vocab,
         target_vocab
     )
@@ -84,7 +90,7 @@ def evaluate(args: argparse.Namespace):
     )
 
     target_sentences: List[List[List[str]]]
-    with open(cargs.validation_target) as f:
+    with open(cargs.target) as f:
         target_sentences = \
             list(map(lambda x: [x.strip().split()], f.readlines()))
 
@@ -100,9 +106,9 @@ def evaluate(args: argparse.Namespace):
             list_of_references.extend(target_sentences[i:i+len(minibatch)])
             i = i + len(minibatch)
             converted = converter(minibatch, cargs.gpu)
-            source = converted[0]
+            source, ga, wo, ni, ga2, target = converted
             results = model.translate(
-                source,
+                source, ga, wo, ni, ga2,
                 max_translation_length=cargs.max_translation_length
             )
             hypotheses.extend([
