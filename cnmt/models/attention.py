@@ -48,12 +48,19 @@ class AttentionModule(chainer.Chain):
         )
         self.precomputed = True
 
+    def get_paf(self, minibatch_size: int, mmax_sentence_size: int):
+        return self.precomputed_alignment_factor
+
+    def get_context(self, attention: Variable):
+        return F.sum(F.scale(self.encoded, attention, axis=0), axis=1)
+
     def __call__(
             self,
             previous_state: Variable,
             previous_embedding: Variable
     ) -> Variable:
-        minibatch_size, max_sentence_size, _ = self.encoded.shape
+        minibatch_size, _ = previous_state.shape
+        _, max_sentence_size, _ = self.encoded.shape
         assert self.precomputed
 
         state_alignment_factor = \
@@ -62,28 +69,67 @@ class AttentionModule(chainer.Chain):
         assert state_alignment_factor.shape == \
             (minibatch_size, self.attention_layer_size)
 
+        broadcast = F.broadcast_to(
+            F.expand_dims(state_alignment_factor, axis=1),
+            (minibatch_size, max_sentence_size, self.attention_layer_size)
+        )
+        paf = self.get_paf(minibatch_size, max_sentence_size)
+        energy = self.linear_o(F.reshape(
+            F.tanh(paf + broadcast),
+            (minibatch_size * max_sentence_size, self.attention_layer_size)
+        ))
         attention = F.softmax(F.reshape(
-            self.linear_o(
-                F.reshape(
-                    F.tanh(
-                        self.precomputed_alignment_factor + F.broadcast_to(
-                            F.expand_dims(state_alignment_factor, axis=1),
-                            (
-                                minibatch_size,
-                                max_sentence_size,
-                                self.attention_layer_size
-                            )
-                        )
-                    ),
-                    (
-                        minibatch_size * max_sentence_size,
-                        self.attention_layer_size
-                    )
-                )
-            ),
+            energy,
             (minibatch_size, max_sentence_size)
         ))
         assert attention.shape == (minibatch_size, max_sentence_size)
 
-        context = F.sum(F.scale(self.encoded, attention, axis=0), axis=1)
+        return self.get_context(attention)
+
+
+class DynamicAttentionModule(AttentionModule):
+    def __init__(
+            self,
+            encoder_output_size: int,
+            attention_layer_size: int,
+            decoder_hidden_layer_size: int,
+            output_embedding_size: int
+    ):
+        super(DynamicAttentionModule, self).__init__(
+            encoder_output_size,
+            attention_layer_size,
+            decoder_hidden_layer_size,
+            output_embedding_size
+        )
+
+    def precompute(self, encoded: Variable):
+        self.encoded = encoded
+        self.precomputed = True
+
+    def get_paf(self, minibatch_size: int, max_sentence_size: int):
+        broadcast = F.broadcast_to(
+            self.encoded,
+            (minibatch_size, max_sentence_size, self.encoder_output_size)
+        )
+        reshaped = F.reshape(
+            broadcast,
+            (minibatch_size * max_sentence_size, self.encoder_output_size)
+        )
+        return F.reshape(
+            self.linear_h(reshaped),
+            (minibatch_size, max_sentence_size, self.attention_layer_size)
+        )
+
+    def get_context(self, attention: Variable):
+        context = F.sum(
+            F.scale(
+                F.broadcast_to(
+                    self.encoded,
+                    attention.shape + (self.encoder_output_size,)
+                ),
+                attention,
+                axis=0
+            ),
+            axis=1
+        )
         return context

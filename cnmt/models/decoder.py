@@ -12,6 +12,7 @@ from cnmt.misc.constants import EOS
 from cnmt.misc.constants import PAD
 from cnmt.misc.typing import ndarray
 from cnmt.models.attention import AttentionModule
+from cnmt.models.attention import DynamicAttentionModule
 
 
 class Decoder(chainer.Chain):
@@ -23,7 +24,8 @@ class Decoder(chainer.Chain):
                  encoder_output_size: int,
                  maxout_layer_size: int,
                  maxout_pool_size: int = 2,
-                 ignore_label: int = -1):
+                 ignore_label: int = -1,
+                 dynamic_attention: bool = False):
         super(Decoder, self).__init__()
         with self.init_scope():
             self.embed_id = L.EmbedID(vocabulary_size,
@@ -39,10 +41,20 @@ class Decoder(chainer.Chain):
                                    maxout_layer_size,
                                    maxout_pool_size)
             self.linear = L.Linear(maxout_layer_size, vocabulary_size)
-            self.attention = AttentionModule(encoder_output_size,
-                                             attention_hidden_layer_size,
-                                             hidden_layer_size,
-                                             word_embeddings_size)
+            if dynamic_attention:
+                self.attention = DynamicAttentionModule(
+                    encoder_output_size,
+                    attention_hidden_layer_size,
+                    hidden_layer_size,
+                    word_embeddings_size
+                )
+            else:
+                self.attention = AttentionModule(
+                    encoder_output_size,
+                    attention_hidden_layer_size,
+                    hidden_layer_size,
+                    word_embeddings_size
+                )
             self.bos_state = Parameter(
                 initializer=self.xp.random.randn(
                     1,

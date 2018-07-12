@@ -66,7 +66,8 @@ def evaluate(args: argparse.Namespace):
             cargs.target_word_embeddings_size,
             cargs.decoder_hidden_layer_size,
             cargs.attention_hidden_layer_size,
-            cargs.maxout_layer_size
+            cargs.maxout_layer_size,
+            dynamic_attention=True
         )
 
         if cargs.gpu >= 0:

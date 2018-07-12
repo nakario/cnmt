@@ -30,7 +30,8 @@ class EncoderDecoder(chainer.Chain):
                  output_word_embeddings_size: int,
                  decoder_hidden_layer_size: int,
                  attention_hidden_layer_size: int,
-                 maxout_layer_size: int):
+                 maxout_layer_size: int,
+                 dynamic_attention: bool = False):
         super(EncoderDecoder, self).__init__()
         with self.init_scope():
             self.enc = Encoder(input_vocabulary_size,
@@ -43,7 +44,8 @@ class EncoderDecoder(chainer.Chain):
                                decoder_hidden_layer_size,
                                attention_hidden_layer_size,
                                encoder_hidden_layer_size * 2,
-                               maxout_layer_size)
+                               maxout_layer_size,
+                               dynamic_attention)
 
     def __call__(
             self,
@@ -103,7 +105,7 @@ def compute_next_states_and_scores(
         model.dec.advance_one_step(state.cell, state.hidden, words)
         for model, state in zip(models, states)
     ])
-    logits, hiddens, betas = zip(*[
+    logits, hiddens = zip(*[
         model.dec.compute_logit(concatenated, hidden, context)
         for model, concatenated, context, hidden
         in zip(models, concatenateds, contexts, hiddens)
