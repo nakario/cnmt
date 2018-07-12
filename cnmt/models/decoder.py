@@ -1,4 +1,5 @@
 from typing import List
+from typing import Tuple
 
 import chainer
 import chainer.functions as F
@@ -11,69 +12,6 @@ from cnmt.misc.constants import EOS
 from cnmt.misc.constants import PAD
 from cnmt.misc.typing import ndarray
 from cnmt.models.attention import AttentionModule
-
-
-class SimilarityScoreFunction(chainer.Chain):
-    def __init__(self, in_size: int):
-        super(SimilarityScoreFunction, self).__init__()
-        with self.init_scope():
-            self.M = Parameter(chainer.initializers.Identity())
-            if in_size is not None:
-                self.M.initialize((in_size, in_size))
-            self.l = Parameter(chainer.initializers.Zero(), ())
-
-    def __call__(
-            self,
-            context: Variable,
-            associated_contexts: Variable,
-            beta: Variable
-    ) -> Variable:
-        minibatch_size, encoder_output_size = context.shape
-        _, context_memory_size, _ = associated_contexts.shape
-        assert associated_contexts.shape == (
-            minibatch_size, context_memory_size, encoder_output_size
-        )
-        assert beta.shape == (minibatch_size, context_memory_size)
-
-        if self.M.array is None:
-            self.M.initialize((encoder_output_size, encoder_output_size))
-        if self.l.array is None:
-            self.l.initialize(())
-
-        return F.squeeze(
-            F.matmul(
-                associated_contexts,
-                F.expand_dims(F.linear(context, self.M), axis=2)
-            ),
-            axis=2
-        ) - F.scale(beta, self.l, axis=0)
-
-
-class GateFunction(chainer.Chain):
-    def __init__(
-            self,
-            in_size: int,
-            gate_hidden_layer_size: int
-    ):
-        super(GateFunction, self).__init__()
-        with self.init_scope():
-            self.linear_in = L.Linear(in_size, gate_hidden_layer_size)
-            self.linear_out = L.Linear(gate_hidden_layer_size, 1)
-
-    def __call__(
-            self,
-            context: Variable,
-            state: Variable,
-            averaged_state: Variable
-    ) -> Variable:
-        assert context.ndim == state.ndim == averaged_state.ndim == 2
-        assert context.shape[0] == state.shape[0] == averaged_state.shape[0]
-        return F.sigmoid(F.squeeze(
-            self.linear_out(F.tanh(self.linear_in(
-                F.concat((context, state, averaged_state), axis=1)
-            ))),
-            axis=1
-        ))
 
 
 class Decoder(chainer.Chain):
@@ -125,31 +63,17 @@ class Decoder(chainer.Chain):
         assert encoder_output_size == self.encoder_output_size
         assert target.shape[0] == minibatch_size
 
-        if self.bos_state.array is None:
-            self.bos_state.initialize((1, self.hidden_layer_size))
+        self.setup(encoded)
+        cell, state, previous_words = self.get_initial_states(minibatch_size)
 
-        self.attention.precompute(encoded)
-        cell = Variable(
-            self.xp.zeros((minibatch_size, self.hidden_layer_size), 'f')
-        )
-        state = F.broadcast_to(
-            self.bos_state, (minibatch_size, self.hidden_layer_size)
-        )
-        previous_embedding = self.embed_id(
-            Variable(self.xp.full((minibatch_size,), EOS, 'i'))
-        )
         total_loss = Variable(self.xp.array(0, 'f'))
         total_predictions = 0
 
         for target_id in self.xp.hsplit(target, target.shape[1]):
             target_id = target_id.reshape((minibatch_size,))
-            context = self.attention(state, previous_embedding)
-            assert context.shape == (minibatch_size, self.encoder_output_size)
-            concatenated = F.concat((previous_embedding, context))
-            cell, state = self.rnn(cell, state, concatenated)
-
-            all_concatenated = F.concat((concatenated, state))
-            logit = self.linear(self.maxout(all_concatenated))
+            cell, state, context, concatenated = \
+                self.advance_one_step(cell, state, previous_words)
+            logit, state = self.compute_logit(concatenated, state, context)
 
             current_sentence_count = self.xp.sum(target_id != PAD)
 
@@ -157,9 +81,51 @@ class Decoder(chainer.Chain):
             total_loss += loss * current_sentence_count
             total_predictions += current_sentence_count
 
-            previous_embedding = self.embed_id(target_id)
+            previous_words = target_id
 
         return total_loss / total_predictions
+
+    def setup(self, encoded: Variable):
+        if self.bos_state.array is None:
+            self.bos_state.initialize((1, self.hidden_layer_size))
+        self.attention.precompute(encoded)
+
+    def get_initial_states(
+            self,
+            minibatch_size: int
+    ) -> Tuple[Variable, Variable, ndarray]:
+        cell = Variable(
+            self.xp.zeros((minibatch_size, self.hidden_layer_size), 'f')
+        )
+        state = F.broadcast_to(
+            self.bos_state, (minibatch_size, self.hidden_layer_size)
+        )
+        previous_words = self.xp.full((minibatch_size,), EOS, 'i')
+        return cell, state, previous_words
+
+    def advance_one_step(
+            self,
+            cell: Variable,
+            state: Variable,
+            previous_words: ndarray
+    ) -> Tuple[Variable, Variable, Variable, Variable]:
+        minibatch_size = cell.shape[0]
+        previous_embedding = self.embed_id(previous_words)
+        context = self.attention(state, previous_embedding)
+        assert context.shape == (minibatch_size, self.encoder_output_size)
+        concatenated = F.concat((previous_embedding, context))
+        cell, state = self.rnn(cell, state, concatenated)
+        return cell, state, context, concatenated
+
+    def compute_logit(
+            self,
+            concatenated: Variable,
+            state: Variable,
+            context: Variable
+    ) -> Tuple[Variable, Variable]:
+        all_concatenated = F.concat((concatenated, state))
+        logit = self.linear(self.maxout(all_concatenated))
+        return logit, state
 
     def translate(
             self,
@@ -168,36 +134,19 @@ class Decoder(chainer.Chain):
     ) -> List[ndarray]:
         sentence_count = encoded.shape[0]
 
-        if self.bos_state.array is None:
-            self.bos_state.initialize((1, self.hidden_layer_size))
+        self.setup(encoded)
+        cell, state, previous_words = self.get_initial_states(sentence_count)
 
-        self.attention.precompute(encoded)
-        cell = Variable(
-            self.xp.zeros((sentence_count, self.hidden_layer_size), 'f')
-        )
-        state = F.broadcast_to(
-            self.bos_state, (sentence_count, self.hidden_layer_size)
-        )
-        previous_embedding = self.embed_id(
-            Variable(self.xp.full((sentence_count,), EOS, 'i'))
-        )
         result = []
-
         for _ in range(max_length):
-            context = self.attention(state, previous_embedding)
-            assert context.shape == \
-                (sentence_count, self.encoder_output_size)
-            concatenated = F.concat((previous_embedding, context))
-
-            cell, state = self.rnn(cell, state, concatenated)
-
-            all_concatenated = F.concat((concatenated, state))
-            logit = self.linear(self.maxout(all_concatenated))
+            cell, state, context, concatenated = \
+                self.advance_one_step(cell, state, previous_words)
+            logit, state = self.compute_logit(concatenated, state, context)
 
             output_id = F.reshape(F.argmax(logit, axis=1), (sentence_count,))
             result.append(output_id)
 
-            previous_embedding = self.embed_id(output_id)
+            previous_words = output_id
 
         # Remove words after <EOS>
         outputs = F.separate(F.transpose(F.vstack(result)), axis=0)

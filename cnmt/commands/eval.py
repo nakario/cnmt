@@ -32,8 +32,6 @@ def define_parser(parser: argparse.ArgumentParser):
 
     parser.add_argument('--gpu', type=int, default=-1,
                         help='GPU ID (-1 means CPU)')
-    parser.add_argument('--minibatch-size', type=int, default=64,
-                        help='')
     parser.add_argument('--source-vocab', type=Path, required=True,
                         help='')
     parser.add_argument('--target-vocab', type=Path, required=True,
@@ -55,6 +53,8 @@ def define_parser(parser: argparse.ArgumentParser):
     parser.add_argument('--models', nargs='+', type=Path, required=True,
                         help='best_bleu.npz')
     parser.add_argument('--max-translation-length', type=int, default=100,
+                        help='')
+    parser.add_argument('--beam-width', type=int, default=10,
                         help='')
 
 

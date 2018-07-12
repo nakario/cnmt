@@ -7,8 +7,11 @@ from typing import NamedTuple
 import chainer
 import matplotlib
 from nltk.translate import bleu_score
+from progressbar import ProgressBar
 
+from cnmt.misc.constants import unk
 from cnmt.models.encdec import EncoderDecoder
+from cnmt.models.encdec import translate_ensemble
 from cnmt.train.train import decode_bpe
 from cnmt.train.train import convert
 from cnmt.train.train import load_vocab
@@ -33,7 +36,6 @@ class ConstArguments(NamedTuple):
     maxout_layer_size: int
 
     gpu: int
-    minibatch_size: int
     source_vocab: Path
     target_vocab: Path
     source: Path
@@ -45,26 +47,35 @@ class ConstArguments(NamedTuple):
     translation_output_file: Path
     models: List[Path]
     max_translation_length: int
+    beam_width: int
 
 
 def evaluate(args: argparse.Namespace):
     cargs = ConstArguments(**vars(args))
     logger.info(f'cargs: {cargs}')
-    model = EncoderDecoder(cargs.source_vocabulary_size,
-                           cargs.source_word_embeddings_size,
-                           cargs.encoder_hidden_layer_size,
-                           cargs.encoder_num_steps,
-                           cargs.encoder_dropout,
-                           cargs.target_vocabulary_size,
-                           cargs.target_word_embeddings_size,
-                           cargs.decoder_hidden_layer_size,
-                           cargs.attention_hidden_layer_size,
-                           cargs.maxout_layer_size)
-    if cargs.gpu >= 0:
-        chainer.cuda.get_device_from_id(cargs.gpu).use()
-        model.to_gpu(cargs.gpu)
 
-    chainer.serializers.load_npz(cargs.models[0], model)
+    models = []
+    for model_file in cargs.models:
+        model = EncoderDecoder(
+            cargs.source_vocabulary_size,
+            cargs.source_word_embeddings_size,
+            cargs.encoder_hidden_layer_size,
+            cargs.encoder_num_steps,
+            cargs.encoder_dropout,
+            cargs.target_vocabulary_size,
+            cargs.target_word_embeddings_size,
+            cargs.decoder_hidden_layer_size,
+            cargs.attention_hidden_layer_size,
+            cargs.maxout_layer_size
+        )
+
+        if cargs.gpu >= 0:
+            chainer.cuda.get_device_from_id(cargs.gpu).use()
+            model.to_gpu(cargs.gpu)
+
+        chainer.serializers.load_npz(model_file, model)
+
+        models.append(model)
 
     source_vocab = load_vocab(cargs.source_vocab, cargs.source_vocabulary_size)
     target_vocab = load_vocab(cargs.target_vocab, cargs.target_vocabulary_size)
@@ -84,7 +95,7 @@ def evaluate(args: argparse.Namespace):
 
     v_iter = chainer.iterators.SerialIterator(
         validation_data,
-        cargs.minibatch_size,
+        1,
         repeat=False,
         shuffle=False
     )
@@ -101,19 +112,19 @@ def evaluate(args: argparse.Namespace):
     v_iter.reset()
     print("start translation")
     with chainer.no_backprop_mode(), chainer.using_config('train', False):
-        i = 0
-        for minibatch in v_iter:
-            list_of_references.extend(target_sentences[i:i+len(minibatch)])
-            i = i + len(minibatch)
+        bar = ProgressBar(max_value=len(target_sentences))
+        for i, minibatch in bar(enumerate(v_iter)):
+            list_of_references.append(target_sentences[i])
             converted = converter(minibatch, cargs.gpu)
             source, ga, wo, ni, ga2, target = converted
-            results = model.translate(
-                source, ga, wo, ni, ga2,
-                max_translation_length=cargs.max_translation_length
+            results = translate_ensemble(
+                models, source, ga, wo, ni, ga2,
+                translation_limit=cargs.max_translation_length,
+                beam_width=cargs.beam_width
             )
             hypotheses.extend([
                 decode_bpe([
-                    target_word.get(id_, '<UNK>')
+                    target_word.get(id_, unk)
                     for id_ in sentence.tolist()[:-1]
                 ]) for sentence in results
             ])
