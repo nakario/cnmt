@@ -45,7 +45,7 @@ class EncoderDecoder(chainer.Chain):
                                attention_hidden_layer_size,
                                encoder_hidden_layer_size * 2,
                                maxout_layer_size,
-                               dynamic_attention)
+                               dynamic_attention=dynamic_attention)
 
     def __call__(
             self,
